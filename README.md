@@ -1,66 +1,154 @@
-# ParkEase — Mall Parking Management System
+# ParkEase 🅿️
 
-Full-stack app: RBAC REST API (Node/Express/MongoDB) + React frontend.
+**ParkEase** is a role-based mall parking management system with atomic slot allocation, QR-based entry/exit verification, and duration billing. It provides a production-style REST API plus a full multi-role React dashboard for shoppers, gate guards, mall owners, and platform admins.
 
+> **Status:** Backend and frontend both complete and runnable locally. Not yet deployed to a cloud host.
+
+---
+
+# Features
+
+- 🔐 Role-based access control — User, Mall Owner, Guard, Admin
+- 🏬 Mall approval workflow (owner submits → admin approves/rejects)
+- 🎟️ Atomic slot auto-allocation (race-condition safe under concurrent bookings)
+- 🚫 One-active-booking-per-user, enforced at the database level
+- 📷 QR-based entry/exit with server-side booking state validation
+- 💰 Duration-based billing, calculated at exit
+- 📊 Parallelized dashboard analytics (slot counts + revenue via `Promise.all`)
+- 🧑‍✈️ Guard-to-mall assignment
+- 🖥️ Full React frontend — one tailored dashboard per role
+
+---
+
+# Tech Stack
+
+## Backend
+
+- Node.js
+- Express.js
+- MongoDB + Mongoose
+- JWT Authentication
+- bcrypt
+- QRCode generation
+
+## Frontend
+
+- React
+- Vite
+- Tailwind CSS
+- React Router
+- lucide-react
+
+---
+
+# Architecture
+
+```text
+                 React Frontend (Vite)
+                          │
+                          ▼
+              Express REST API (Node.js)
+                          │
+        ┌─────────────────┼─────────────────┐
+        │                 │                 │
+        ▼                 ▼                 ▼
+   Auth / RBAC      MongoDB (Mongoose)   QR Generation
+   (JWT)            Users · Malls ·      (qrcode)
+                     Slots · Bookings
 ```
+
+---
+
+# Project Structure
+
+```text
 parkease/
-├── backend/     Express API — see backend/README.md for full API reference
-└── frontend/    React (Vite) app — one screen per role
+│
+├── backend/
+│   ├── config/          # MongoDB connection
+│   ├── models/          # User, Mall, Slot, Booking
+│   ├── middleware/       # auth (JWT), role (RBAC), error handling
+│   ├── controllers/      # auth, mall, slot, booking, dashboard, admin
+│   ├── routes/
+│   ├── utils/            # billing calc, QR generation, JWT signing
+│   └── server.js
+│
+└── frontend/
+    ├── src/
+    │   ├── pages/         # UserDashboard, GuardDashboard, MallOwnerDashboard, AdminDashboard
+    │   ├── components/
+    │   ├── context/       # AuthContext
+    │   └── styles/        # Tailwind entry + design tokens
+    └── tailwind.config.js
 ```
 
-## Run both together
+---
 
-**1. Backend**
+# Engineering Highlights
+
+- **Atomic slot allocation** — `findOneAndUpdate({mall, status:'available'}, {$set:{status:'booked'}})` is a single atomic MongoDB operation, so two concurrent booking requests can never be handed the same slot.
+- **One-active-booking-per-user** — enforced with a MongoDB **partial unique index** on `Booking` (not just an app-level check), so the constraint holds even under a race between two requests from the same user.
+- **Compensating rollback** — if a booking insert fails after a slot was already claimed, the slot is released back to `available` as a compensating action (no distributed transaction needed on a standalone MongoDB).
+- **Server-side QR state machine** — entry only succeeds if a booking is `booked`; exit only succeeds if it's `active`. QR tokens are random UUIDs, not database IDs, so bookings can't be enumerated or guessed.
+- **Parallelized analytics** — slot-count and revenue aggregations read independent collections, so they run concurrently via `Promise.all` instead of paying their latency sequentially.
+
+---
+
+# Engineering Challenges Solved
+
+- Designed a database-enforced concurrency constraint (partial unique index) instead of relying on application-level locking.
+- Built a QR-driven state machine where entry/exit are only valid for specific booking states, preventing replay or out-of-order scans.
+- Structured a 4-role RBAC system where privileged roles (guard, admin) can only be created by an existing admin — not self-registered.
+- Kept slot allocation correct on a standalone MongoDB (no replica set) by combining atomic single-document ops with compensating rollbacks instead of multi-document transactions.
+
+---
+
+# Roadmap
+
+### ✅ Done
+
+- RBAC backend (User / Mall Owner / Guard / Admin)
+- Mall approval workflow
+- Atomic slot allocation & booking constraints
+- QR entry/exit verification
+- Duration-based billing
+- Dashboard analytics API
+- React frontend for all 4 roles (Tailwind CSS)
+
+### 🔮 Future Enhancements
+
+- Camera-based QR scanning at the gate (currently paste-to-scan)
+- Cloud deployment (Railway/Render) + CI pipeline
+- Payment gateway integration
+- Automated tests
+- Docker + docker-compose
+- Email/SMS booking notifications
+
+---
+
+# Getting Started
+
 ```bash
+git clone <repository-url>
+cd ParkEase-Mall-Parking-Management-System
+
+# Backend
 cd backend
 npm install
 cp .env.example .env      # set MONGO_URI, JWT_SECRET, etc.
-npm run seed:admin        # bootstraps the first admin account
-npm run dev                # http://localhost:5000
-```
+npm run seed:admin         # bootstraps the first admin account
+npm run dev                 # http://localhost:5000
 
-**2. Frontend** (in a second terminal)
-```bash
-cd frontend
+# Frontend (in a second terminal)
+cd ../frontend
 npm install
-cp .env.example .env      # VITE_API_URL defaults to http://localhost:5000/api
-npm run dev                # http://localhost:5173
+cp .env.example .env       # VITE_API_URL defaults to http://localhost:5000/api
+npm run dev                 # http://localhost:5173
 ```
 
-Open `http://localhost:5173`. Log in with the seeded admin account (from
-`backend/.env`) to create guard accounts, or register as a shopper/mall owner.
+---
 
-## What each role sees
+# Author
 
-| Role        | Route     | Screen |
-|-------------|-----------|--------|
-| `user`      | `/park`   | Browse approved malls, auto-book a slot, view the QR ticket, booking history |
-| `guard`     | `/gate`   | Paste a scanned QR payload, approve entry or process exit (shows the computed bill) |
-| `mallOwner` | `/owner`  | Submit malls for approval, generate slots, assign guards, view per-mall analytics |
-| `admin`     | `/admin`  | Approve/reject malls, create guard/admin accounts, platform-wide overview |
-
-## Suggested walkthrough
-
-1. Log in as admin (seeded account) → **Users** tab → create a `mallOwner` and a `guard`.
-2. Log out, register/log in as the mall owner → **My malls** → submit a mall.
-3. Log back in as admin → **Mall approvals** → approve it.
-4. As mall owner → **Slots** tab → generate slots for the approved mall.
-5. As mall owner → **Guards** tab → paste the guard's user ID (visible in admin's Users table) to assign them to the mall.
-6. Register/log in as a `user` → book a slot → note the QR shown.
-7. Log in as the guard → **Gate scanner** → paste the QR payload → Approve entry, then later Process exit to see the bill.
-8. As mall owner or admin → **Analytics** / **Platform overview** → see live slot and revenue numbers.
-
-## Notes
-
-- The frontend uses **Tailwind CSS** with a custom theme (`frontend/tailwind.config.js`)
-  built around a signage-inspired token system — asphalt/barrier-yellow palette,
-  Archivo/Inter/JetBrains Mono type, a ticket-stub QR card, and a barrier-stripe
-  divider motif — plus [lucide-react](https://lucide.dev) icons throughout.
-  Reusable pieces (`.card`, `.btn`, `.pill`, `.field-input`, etc.) are defined
-  once via `@layer components` in `frontend/src/styles/index.css`.
-- The guard "scanner" accepts pasted QR text rather than driving a camera —
-  wiring up a camera-based QR reader (e.g. a `<video>` + a JS decoding lib) is
-  a natural next step if this needs to run on a physical device at a gate.
-- Both `npm install` steps need network access; this environment doesn't have
-  it, so dependencies aren't pre-installed in the zip — you'll need to run
-  `npm install` yourself in each folder.
+**Aditya Pandey**
+If you found this project interesting or have suggestions for improvement, feel free to open an issue or connect with me on LinkedIn.
