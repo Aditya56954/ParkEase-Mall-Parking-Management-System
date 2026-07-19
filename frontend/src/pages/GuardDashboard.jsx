@@ -3,7 +3,7 @@ import { ScanLine, LogIn, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import StatusPill from '../components/StatusPill';
-import QRcodeScanner from "../components/QRcodeScanner";
+import QRCodeScanner from "../components/QRCodeScanner";
 
 function extractToken(raw) {
   const trimmed = raw.trim();
