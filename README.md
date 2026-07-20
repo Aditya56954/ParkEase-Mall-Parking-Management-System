@@ -146,9 +146,22 @@ cp .env.example .env       # VITE_API_URL defaults to http://localhost:5000/api
 npm run dev                 # http://localhost:5173
 ```
 
+
 ---
 
-# Author
+## 🚀 Let's Connect
+
+Thank you for taking the time to explore this project!
+
+I'm always open to feedback, collaboration, and discussions about full-stack development, web technologies, and open-source.
+
+If you found this project useful or have ideas for improvement, feel free to:
+
+- ⭐ Star this repository
+- 🐛 Open an issue
+- 🔧 Submit a pull request
+- 💼 [Connect with me on LinkedIn](https://www.linkedin.com/in/adityapandey56954/)
+
+Your feedback and support are greatly appreciated. Thanks for stopping by!
 
 **Aditya Pandey**
-If you found this project interesting or have suggestions for improvement, feel free to open an issue or connect with me on LinkedIn.
